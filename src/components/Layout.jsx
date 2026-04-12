@@ -19,7 +19,7 @@ export default function Layout() {
 
   async function handleLogout() {
     await signOut()
-    navigate('/login')
+    window.location.replace('/login')
   }
 
   return (
@@ -49,7 +49,7 @@ export default function Layout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-primary text-dark'
+                    ? 'bg-primary/20 text-primary border-l-2 border-primary'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`
               }
