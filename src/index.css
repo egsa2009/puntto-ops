@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Puntto Design Tokens */
+@theme {
+  --color-dark:            #031D44;
+  --color-dark-light:      #031D44;
+  --color-primary:         #2A9D8F;
+  --color-primary-dark:    #208a7d;
+  --color-primary-darker:  #177068;
+  --color-accent:          #BFA16F;
+  --color-accent-dark:     #a4844e;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
