@@ -3,9 +3,9 @@
 @theme {
   --color-dark:            #0A1F44;
   --color-dark-light:      #132a5c;
-  --color-primary:         #00E5FF;
-  --color-primary-dark:    #00b8cc;
-  --color-primary-darker:  #008fa0;
+  --color-primary:         #00b8cc;
+  --color-primary-dark:    #008fa0;
+  --color-primary-darker:  #006d7a;
   --color-accent:          #FF6B00;
   --color-accent-dark:     #cc5500;
 }
