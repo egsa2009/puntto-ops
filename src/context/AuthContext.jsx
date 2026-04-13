@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+﻿import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
@@ -9,9 +9,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) await loadOperator(session.user.id)
-      setLoading(false)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) await loadOperator(session.user.id)
+      } catch (err) {
+        console.error('Auth load error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
 

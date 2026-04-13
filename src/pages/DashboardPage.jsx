@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Building2, Users, AlertTriangle, TrendingUp, Clock, CheckCircle, XCircle, PauseCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -66,9 +66,8 @@ export default function DashboardPage() {
         })))
       }
 
-      setLoading(false)
     }
-    load()
+    load().catch(console.error).finally(() => setLoading(false))
   }, [])
 
   if (loading) return (
@@ -93,7 +92,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-5">
         {kpis.map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="bg-white rounded-2xl p-5 shadow-sm">
             <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>

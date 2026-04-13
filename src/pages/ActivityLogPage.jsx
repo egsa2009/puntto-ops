@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Activity, Filter } from 'lucide-react'
 
@@ -31,9 +31,8 @@ export default function ActivityLogPage() {
         .limit(100)
 
       setEvents(data || [])
-      setLoading(false)
     }
-    load()
+    load().catch(console.error).finally(() => setLoading(false))
   }, [])
 
   function fmtDate(d) {

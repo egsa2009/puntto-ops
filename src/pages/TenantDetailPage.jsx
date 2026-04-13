@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -57,7 +57,7 @@ export default function TenantDetailPage() {
   // Extensión rápida
   const [extDays, setExtDays] = useState(30)
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { load().catch(console.error).finally(() => setLoading(false)) }, [id])
 
   async function load() {
     const [
@@ -109,7 +109,6 @@ export default function TenantDetailPage() {
     ])
     setMetrics({ customers: customers || 0, purchases: purchases || 0 })
 
-    setLoading(false)
   }
 
   function showToast(ok, text) {
@@ -133,6 +132,7 @@ export default function TenantDetailPage() {
 
   async function handleSaveSub(e) {
     e.preventDefault()
+    if (!sub) return
     setSaving(true)
     const { error } = await supabase
       .from('subscriptions')
@@ -157,6 +157,7 @@ export default function TenantDetailPage() {
   }
 
   async function handleStatusChange(newStatus, note) {
+    if (!sub) return
     setSaving(true)
     const { error } = await supabase
       .from('subscriptions')
@@ -173,7 +174,7 @@ export default function TenantDetailPage() {
   }
 
   async function handleExtend() {
-    if (!extDays || extDays < 1) return
+    if (!extDays || extDays < 1 || !sub) return
     setSaving(true)
     const currentEnd  = new Date(sub.ends_at)
     const newEnd      = new Date(currentEnd.getTime() + extDays * 24 * 60 * 60 * 1000)
