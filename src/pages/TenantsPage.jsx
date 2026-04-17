@@ -4,11 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Building2, ChevronRight, Filter } from 'lucide-react'
 
 const STATUS_CONFIG = {
-  trial:     { label: 'Trial',      color: 'bg-blue-100 text-blue-700'    },
-  active:    { label: 'Activo',     color: 'bg-green-100 text-green-700'  },
-  expired:   { label: 'Vencido',    color: 'bg-amber-100 text-amber-700'  },
-  suspended: { label: 'Suspendido', color: 'bg-red-100 text-red-700'      },
-  cancelled: { label: 'Cancelado',  color: 'bg-gray-100 text-gray-500'    },
+  trial:     { label: 'Trial',          color: 'bg-blue-100 text-blue-700'    },
+  active:    { label: 'Activo',         color: 'bg-green-100 text-green-700'  },
+  expired:   { label: 'Vencido',        color: 'bg-amber-100 text-amber-700'  },
+  suspended: { label: 'Suspendido',     color: 'bg-red-100 text-red-700'      },
+  cancelled: { label: 'Cancelado',      color: 'bg-gray-100 text-gray-500'    },
+  none:      { label: 'Sin suscripcion',color: 'bg-gray-100 text-gray-400'    },
 }
 
 export default function TenantsPage() {
@@ -21,26 +22,57 @@ export default function TenantsPage() {
   useEffect(() => { loadTenants() }, [])
 
   async function loadTenants() {
-    const { data: subs } = await supabase
-      .from('subscriptions')
-      .select(`
-        id, status, starts_at, ends_at, plan_id,
-        tenants!subscriptions_tenant_id_fkey (
-          id, name, logo_url, created_at
-        ),
-        subscription_plans!subscriptions_plan_id_fkey (
-          name
-        )
-      `)
+    // 1. Cargar todos los tenants (sin join para evitar ambigüedad en PostgREST)
+    const { data: tenantsData } = await supabase
+      .from('tenants')
+      .select('id, name, logo_url, created_at')
       .order('created_at', { ascending: false })
 
+    if (!tenantsData?.length) { setTenants([]); setLoading(false); return }
+
+    // 2. Cargar suscripciones de esos tenants
+    const tenantIds = tenantsData.map(t => t.id)
+    const { data: subsData } = await supabase
+      .from('subscriptions')
+      .select('id, status, starts_at, ends_at, plan_id, tenant_id')
+      .in('tenant_id', tenantIds)
+
+    // 3. Cargar nombres de planes si hay suscripciones
+    const planIds = [...new Set((subsData || []).map(s => s.plan_id).filter(Boolean))]
+    let plansMap = {}
+    if (planIds.length) {
+      const { data: plansData } = await supabase
+        .from('subscription_plans')
+        .select('id, name')
+        .in('id', planIds)
+      ;(plansData || []).forEach(p => { plansMap[p.id] = p.name })
+    }
+
+    // 4. Construir un map de tenant_id → suscripcion más reciente
+    const subsMap = {}
+    ;(subsData || []).forEach(s => {
+      // Guardar la suscripcion más reciente por tenant (por si hay varias)
+      if (!subsMap[s.tenant_id] || new Date(s.starts_at) > new Date(subsMap[s.tenant_id].starts_at)) {
+        subsMap[s.tenant_id] = s
+      }
+    })
+
+    // 5. Combinar
     const now = new Date()
-    const rows = (subs || []).map(s => ({
-      ...s,
-      tenant:   s.tenants,
-      plan:     s.subscription_plans,
-      daysLeft: Math.ceil((new Date(s.ends_at) - now) / 1000 / 60 / 60 / 24),
-    }))
+    const rows = tenantsData.map(t => {
+      const sub = subsMap[t.id] || null
+      return {
+        _key:     t.id,
+        tenant:   t,
+        status:   sub?.status || 'none',
+        ends_at:  sub?.ends_at || null,
+        plan_id:  sub?.plan_id || null,
+        planName: sub?.plan_id ? (plansMap[sub.plan_id] || sub.plan_id) : null,
+        daysLeft: sub?.ends_at
+          ? Math.ceil((new Date(sub.ends_at) - now) / 1000 / 60 / 60 / 24)
+          : null,
+      }
+    })
 
     setTenants(rows)
     setLoading(false)
@@ -52,6 +84,16 @@ export default function TenantsPage() {
     const matchFilter = filter === 'all' || t.status === filter
     return matchSearch && matchFilter
   })
+
+  const filterOptions = [
+    { value: 'all',       label: 'Todos los estados' },
+    { value: 'trial',     label: 'Trial'             },
+    { value: 'active',    label: 'Activos'           },
+    { value: 'expired',   label: 'Vencidos'          },
+    { value: 'suspended', label: 'Suspendidos'       },
+    { value: 'cancelled', label: 'Cancelados'        },
+    { value: 'none',      label: 'Sin suscripcion'   },
+  ]
 
   return (
     <div>
@@ -78,12 +120,9 @@ export default function TenantsPage() {
             value={filter} onChange={e => setFilter(e.target.value)}
             className="text-sm text-gray-700 focus:outline-none py-2.5 bg-transparent"
           >
-            <option value="all">Todos los estados</option>
-            <option value="trial">Trial</option>
-            <option value="active">Activos</option>
-            <option value="expired">Vencidos</option>
-            <option value="suspended">Suspendidos</option>
-            <option value="cancelled">Cancelados</option>
+            {filterOptions.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -113,7 +152,7 @@ export default function TenantsPage() {
               </td></tr>
             )}
             {!loading && filtered.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50 transition-colors cursor-pointer"
+              <tr key={row._key} className="hover:bg-gray-50 transition-colors cursor-pointer"
                 onClick={() => navigate(`/tenants/${row.tenant?.id}`)}>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -131,22 +170,25 @@ export default function TenantsPage() {
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-gray-600">{row.plan?.name || row.plan_id}</td>
+                <td className="px-6 py-4 text-gray-600">{row.planName || '—'}</td>
                 <td className="px-6 py-4">
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_CONFIG[row.status]?.color}`}>
                     {STATUS_CONFIG[row.status]?.label}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-gray-500">
-                  {new Date(row.ends_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' })}
+                  {row.ends_at
+                    ? new Date(row.ends_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' })
+                    : <span className="text-gray-300">—</span>
+                  }
                 </td>
                 <td className="px-6 py-4">
-                  {row.status === 'cancelled' ? (
+                  {!row.ends_at || row.status === 'cancelled' ? (
                     <span className="text-gray-400 text-xs">—</span>
                   ) : (
                     <span className={`font-bold text-sm ${
-                      row.daysLeft < 0 ? 'text-red-500' :
-                      row.daysLeft <= 3 ? 'text-red-500' :
+                      row.daysLeft < 0  ? 'text-red-500'   :
+                      row.daysLeft <= 3 ? 'text-red-500'   :
                       row.daysLeft <= 7 ? 'text-amber-500' : 'text-gray-700'
                     }`}>
                       {row.daysLeft < 0 ? `Vencio hace ${Math.abs(row.daysLeft)}d` : `${row.daysLeft}d`}

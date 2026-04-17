@@ -57,6 +57,17 @@ export default function TenantDetailPage() {
   // Extensión rápida
   const [extDays, setExtDays] = useState(30)
 
+  // Formulario de nueva suscripción (cuando no existe ninguna)
+  const [newSubForm, setNewSubForm] = useState({
+    plan_id:           '',
+    status:            'trial',
+    starts_at:         new Date().toISOString().slice(0, 16),
+    ends_at:           new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    grace_period_days: 3,
+    notes:             '',
+  })
+  const [creatingSub, setCreatingSub] = useState(false)
+
   useEffect(() => { load().catch(console.error).finally(() => setLoading(false)) }, [id])
 
   async function load() {
@@ -194,6 +205,27 @@ export default function TenantDetailPage() {
     setSaving(false)
   }
 
+  async function handleCreateSub(e) {
+    e.preventDefault()
+    if (!newSubForm.plan_id) { showToast(false, 'Selecciona un plan'); return }
+    setCreatingSub(true)
+    const { error } = await supabase.from('subscriptions').insert({
+      tenant_id:         id,
+      plan_id:           newSubForm.plan_id,
+      status:            newSubForm.status,
+      starts_at:         new Date(newSubForm.starts_at).toISOString(),
+      ends_at:           new Date(newSubForm.ends_at).toISOString(),
+      grace_period_days: newSubForm.grace_period_days,
+      notes:             newSubForm.notes || null,
+    })
+    if (error) { showToast(false, 'Error al crear: ' + error.message) }
+    else {
+      showToast(true, 'Suscripción creada correctamente')
+      await load()
+    }
+    setCreatingSub(false)
+  }
+
   async function handleAddNote() {
     if (!newNote.trim()) return
     const { error } = await supabase.from('operator_notes').insert({
@@ -270,8 +302,8 @@ export default function TenantDetailPage() {
             ))}
           </div>
 
-          {/* Formulario de suscripción */}
-          {sub && (
+          {/* Formulario de suscripción — edición si existe, creación si no */}
+          {sub ? (
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-gray-800 mb-5">Suscripcion actual</h3>
               <form onSubmit={handleSaveSub} className="space-y-4">
@@ -311,6 +343,69 @@ export default function TenantDetailPage() {
                 <button type="submit" disabled={saving}
                   className="flex items-center gap-2 bg-primary text-dark font-bold px-6 py-3 rounded-xl text-sm hover:bg-primary-dark transition-colors disabled:opacity-50">
                   <Save size={16} /> {saving ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-dashed border-gray-200">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <Plus size={18} className="text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Crear suscripcion</h3>
+                  <p className="text-gray-400 text-xs">Este negocio aun no tiene suscripcion activa</p>
+                </div>
+              </div>
+              <form onSubmit={handleCreateSub} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Plan</label>
+                    <select value={newSubForm.plan_id}
+                      onChange={e => setNewSubForm({ ...newSubForm, plan_id: e.target.value })}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                      <option value="">— Selecciona un plan —</option>
+                      {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado inicial</label>
+                    <select value={newSubForm.status}
+                      onChange={e => setNewSubForm({ ...newSubForm, status: e.target.value })}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                      <option value="trial">Trial</option>
+                      <option value="active">Activo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha inicio</label>
+                    <input type="datetime-local" value={newSubForm.starts_at}
+                      onChange={e => setNewSubForm({ ...newSubForm, starts_at: e.target.value })}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha fin</label>
+                    <input type="datetime-local" value={newSubForm.ends_at}
+                      onChange={e => setNewSubForm({ ...newSubForm, ends_at: e.target.value })}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Dias de gracia</label>
+                    <input type="number" value={newSubForm.grace_period_days} min={0} max={30}
+                      onChange={e => setNewSubForm({ ...newSubForm, grace_period_days: parseInt(e.target.value) })}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nota interna (opcional)</label>
+                    <input type="text" value={newSubForm.notes}
+                      onChange={e => setNewSubForm({ ...newSubForm, notes: e.target.value })}
+                      placeholder="Ej: Primer pago por PSE..."
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                </div>
+                <button type="submit" disabled={creatingSub || !newSubForm.plan_id}
+                  className="flex items-center gap-2 bg-primary text-dark font-bold px-6 py-3 rounded-xl text-sm hover:bg-primary-dark transition-colors disabled:opacity-50">
+                  <Plus size={16} /> {creatingSub ? 'Creando...' : 'Crear suscripcion'}
                 </button>
               </form>
             </div>
