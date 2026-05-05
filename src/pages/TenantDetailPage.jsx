@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   ArrowLeft, Building2, Calendar, Clock, Save,
   PlayCircle, PauseCircle, XCircle, RefreshCw,
-  Plus, MessageSquare, AlertTriangle, Check
+  Plus, MessageSquare, AlertTriangle, Check, UserPlus, Eye, EyeOff
 } from 'lucide-react'
 
 const STATUS_CONFIG = {
@@ -44,6 +44,11 @@ export default function TenantDetailPage() {
   const [saving,   setSaving]   = useState(false)
   const [toast,    setToast]    = useState(null)
   const [newNote,  setNewNote]  = useState('')
+
+  // Formulario de crear admin
+  const [adminForm,    setAdminForm]    = useState({ full_name: '', email: '', password: '' })
+  const [adminSaving,  setAdminSaving]  = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   // Formulario de suscripción
   const [form, setForm] = useState({
@@ -191,6 +196,39 @@ export default function TenantDetailPage() {
       await load()
     }
     setSaving(false)
+  }
+
+  async function handleCreateAdmin(e) {
+    e.preventDefault()
+    if (!adminForm.full_name.trim() || !adminForm.email.trim() || adminForm.password.length < 6) {
+      showToast(false, 'Completa todos los campos. La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+    setAdminSaving(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-tenant-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionData.session?.access_token}`,
+        },
+        body: JSON.stringify({
+          tenant_id: id,
+          full_name: adminForm.full_name.trim(),
+          email:     adminForm.email.trim(),
+          password:  adminForm.password,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Error desconocido')
+      showToast(true, `Admin "${adminForm.full_name}" creado correctamente`)
+      setAdminForm({ full_name: '', email: '', password: '' })
+      await load()
+    } catch (err) {
+      showToast(false, 'Error al crear admin: ' + err.message)
+    }
+    setAdminSaving(false)
   }
 
   async function handleAddNote() {
@@ -576,6 +614,64 @@ export default function TenantDetailPage() {
               className="w-full mt-2 bg-primary text-dark font-semibold py-2.5 rounded-xl text-sm hover:bg-primary-dark transition-colors disabled:opacity-40">
               Agregar nota
             </button>
+          </div>
+
+          {/* Info del plan */}
+          {/* Crear Admin del negocio */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <UserPlus size={16} className="text-gray-500" />
+              <h3 className="font-bold text-gray-800">Crear admin del negocio</h3>
+            </div>
+            <form onSubmit={handleCreateAdmin} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
+                <input
+                  type="text"
+                  value={adminForm.full_name}
+                  onChange={e => setAdminForm({ ...adminForm, full_name: e.target.value })}
+                  placeholder="Juan Pérez"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={adminForm.email}
+                  onChange={e => setAdminForm({ ...adminForm, email: e.target.value })}
+                  placeholder="admin@negocio.com"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña temporal</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={adminForm.password}
+                    onChange={e => setAdminForm({ ...adminForm, password: e.target.value })}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={adminSaving || !adminForm.full_name || !adminForm.email || adminForm.password.length < 6}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-dark font-semibold py-2.5 rounded-xl text-sm hover:bg-primary-dark transition-colors disabled:opacity-40"
+              >
+                <UserPlus size={15} />
+                {adminSaving ? 'Creando...' : 'Crear admin'}
+              </button>
+            </form>
           </div>
 
           {/* Info del plan */}
